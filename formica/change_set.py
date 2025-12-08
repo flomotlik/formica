@@ -11,6 +11,7 @@ from formica import CHANGE_SET_FORMAT
 import time
 
 CHANGE_SET_HEADER = ["Action", "LogicalId", "PhysicalId", "Type", "Replacement", "Changed"]
+VALIDATION_HEADER = ["Resource", "Validation", "Status", "Path", "Reason"]
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,9 @@ class ChangeSet:
             status_reason = e.last_response.get("StatusReason", "")
             logger.info(status_reason)
             if "didn't contain changes" not in status_reason:
+                # Check if this is a validation failure and show details
+                if "validation failed" in status_reason.lower():
+                    self.describe_validation()
                 sys.exit(1)
 
     def __init__(self, stack, arn="", nested_change_sets=False):
@@ -162,6 +166,62 @@ class ChangeSet:
         for nested_change_set in nested_change_sets:
             logger.info(f"\nChanges for nested Stack: {nested_change_set[0]}")
             ChangeSet(stack=self.stack, arn=nested_change_set[1]).describe(print_metadata=False)
+
+    def describe_validation(self):
+        """Fetch and display pre-deployment validation events for the change set."""
+        try:
+            # Poll until CREATE_CHANGESET operation has SUCCEEDED
+            logger.info("Waiting for validation to complete...")
+            max_attempts = 60
+            delay = 2
+            for attempt in range(max_attempts):
+                events_response = cf.describe_events(ChangeSetName=self.name, StackName=self.stack)
+                events = events_response.get("OperationEvents", [])
+
+                # Check if CREATE_CHANGESET operation has completed
+                changeset_completed = any(
+                    e.get("OperationType") == "CREATE_CHANGESET"
+                    and e.get("OperationStatus") in ("SUCCEEDED", "FAILED")
+                    for e in events
+                )
+
+                if changeset_completed:
+                    break
+
+                time.sleep(delay)
+            else:
+                logger.info("\nValidation: Timed out waiting for validation to complete")
+                return
+
+            validation_events = [
+                e for e in events
+                if e.get("EventType") == "VALIDATION_ERROR" or e.get("ValidationStatus")
+            ]
+
+            if not validation_events:
+                logger.info("\nValidation: No validation issues found")
+                return
+
+            logger.info("\nValidation Results:")
+            table = Texttable(max_width=150)
+            table.add_rows([VALIDATION_HEADER])
+
+            for event in validation_events:
+                table.add_row([
+                    event.get("LogicalResourceId", ""),
+                    event.get("ValidationName", ""),
+                    event.get("ValidationStatus", ""),
+                    event.get("ValidationPath", ""),
+                    event.get("ValidationStatusReason", ""),
+                ])
+
+            logger.info(table.draw())
+
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "ValidationError":
+                logger.info("\nValidation: Unable to retrieve validation events")
+            else:
+                raise e
 
     def remove_existing_changeset(self):
         try:

@@ -5,12 +5,13 @@ import copy
 
 from botocore.exceptions import WaiterError, ClientError
 
-from formica.change_set import ChangeSet, CHANGE_SET_HEADER
+from formica.change_set import ChangeSet, CHANGE_SET_HEADER, VALIDATION_HEADER
 from tests.unit.constants import (
     STACK, TEMPLATE, CHANGE_SET_TYPE, CHANGESETNAME, CHANGESETCHANGES,
     CHANGE_SET_PARAMETERS, ROLE_ARN, CHANGE_SET_STACK_TAGS,
     CHANGESETCHANGES_WITH_DUPLICATE_CHANGED_PARAMETER, REGION, UUID, RESOURCES, CHANGE_SET_ID, CHANGESET_NESTED_CHANGES,
-    CHANGESET_NESTED_STACK_NO_NESTED_CHANGESET
+    CHANGESET_NESTED_STACK_NO_NESTED_CHANGESET, VALIDATION_EVENTS_RESPONSE, VALIDATION_EVENTS_EMPTY,
+    VALIDATION_EVENTS_IN_PROGRESS
 )
 
 
@@ -378,3 +379,80 @@ def test_change_set_without_named_properties(client):
 
     change_set = ChangeSet(STACK)
     change_set.describe()
+
+
+def test_describe_validation_calls_describe_events(client, time):
+    client.describe_events.return_value = VALIDATION_EVENTS_RESPONSE
+    change_set = ChangeSet(STACK)
+
+    change_set.describe_validation()
+
+    client.describe_events.assert_called_with(
+        ChangeSetName=CHANGESETNAME,
+        StackName=STACK
+    )
+
+
+def test_describe_validation_displays_validation_errors(logger, client, time):
+    client.describe_events.return_value = VALIDATION_EVENTS_RESPONSE
+    change_set = ChangeSet(STACK)
+
+    change_set.describe_validation()
+
+    validation_output = '\n'.join([call[1][0] for call in logger.info.mock_calls])
+
+    # Check that the validation header and values are displayed
+    to_search = []
+    to_search.extend(VALIDATION_HEADER)
+    to_search.extend(['Validation Results'])
+    to_search.extend(['MyLambdaFunction', 'MyS3Bucket'])
+    to_search.extend(['PROPERTY_VALIDATION', 'RESOURCE_CONFLICT'])
+    to_search.extend(['FAILED'])
+    to_search.extend(['/Resources/MyLambdaFunction/Properties/Timeout'])
+    # Check for part of the reason (table may wrap long text)
+    to_search.extend(['Property [Timeout]', 'Integer'])
+    for term in to_search:
+        assert term in validation_output
+
+
+def test_describe_validation_shows_no_issues_when_empty(logger, client, time):
+    client.describe_events.return_value = VALIDATION_EVENTS_EMPTY
+    change_set = ChangeSet(STACK)
+
+    change_set.describe_validation()
+
+    validation_output = '\n'.join([call[1][0] for call in logger.info.mock_calls])
+
+    assert 'No validation issues found' in validation_output
+    assert 'Validation Results' not in validation_output
+
+
+def test_describe_validation_handles_client_error(logger, client, time):
+    client.describe_events.side_effect = ClientError(
+        dict(Error=dict(Code='ValidationError')), "DescribeEvents"
+    )
+    change_set = ChangeSet(STACK)
+
+    change_set.describe_validation()
+
+    validation_output = '\n'.join([call[1][0] for call in logger.info.mock_calls])
+    assert 'Unable to retrieve validation events' in validation_output
+
+
+def test_describe_validation_polls_until_complete(logger, client, time):
+    # First call returns IN_PROGRESS, second call returns completed with errors
+    client.describe_events.side_effect = [
+        VALIDATION_EVENTS_IN_PROGRESS,
+        VALIDATION_EVENTS_RESPONSE
+    ]
+    change_set = ChangeSet(STACK)
+
+    change_set.describe_validation()
+
+    # Should have called describe_events twice
+    assert client.describe_events.call_count == 2
+    # Should have slept between polls
+    time.sleep.assert_called_with(2)
+
+    validation_output = '\n'.join([call[1][0] for call in logger.info.mock_calls])
+    assert 'Validation Results' in validation_output

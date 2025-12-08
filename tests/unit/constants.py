@@ -222,3 +222,81 @@ ACCOUNTS = {'Accounts': [
     {'Id': '5678', 'Status': 'ACTIVE', 'Name': 'TestName2', 'Email': 'email2@test.com'},
     {'Id': '54321', 'Status': 'SUSPENDED', 'Name': 'TestName1', 'Email': 'email1@test.com'}]
 }
+
+VALIDATION_EVENTS_IN_PROGRESS = {
+    'OperationEvents': [
+        {
+            'EventId': 'in-progress-event',
+            'StackId': 'arn:aws:cloudformation:us-east-1:123456789012:stack/teststack/abc123',
+            'OperationId': 'op-123',
+            'OperationType': 'CREATE_CHANGESET',
+            'OperationStatus': 'IN_PROGRESS',
+            'EventType': 'STACK_EVENT',
+        }
+    ]
+}
+
+VALIDATION_EVENTS_COMPLETED_NO_CHANGESET = {
+    'OperationEvents': [
+        {
+            'EventId': 'other-event',
+            'StackId': 'arn:aws:cloudformation:us-east-1:123456789012:stack/teststack/abc123',
+            'OperationId': 'op-123',
+            'OperationType': 'UPDATE_STACK',
+            'OperationStatus': 'SUCCEEDED',
+            'EventType': 'STACK_EVENT',
+        }
+    ]
+}
+
+VALIDATION_EVENTS_RESPONSE = {
+    'OperationEvents': [
+        {
+            'EventId': 'succeeded-event',
+            'StackId': 'arn:aws:cloudformation:us-east-1:123456789012:stack/teststack/abc123',
+            'OperationId': 'op-123',
+            'OperationType': 'CREATE_CHANGESET',
+            'OperationStatus': 'SUCCEEDED',
+            'EventType': 'STACK_EVENT',
+        },
+        {
+            'EventId': 'validation-event-1',
+            'StackId': 'arn:aws:cloudformation:us-east-1:123456789012:stack/teststack/abc123',
+            'OperationId': 'op-123',
+            'OperationType': 'CREATE_CHANGESET',
+            'EventType': 'VALIDATION_ERROR',
+            'LogicalResourceId': 'MyLambdaFunction',
+            'ResourceType': 'AWS::Lambda::Function',
+            'ValidationName': 'PROPERTY_VALIDATION',
+            'ValidationStatus': 'FAILED',
+            'ValidationPath': '/Resources/MyLambdaFunction/Properties/Timeout',
+            'ValidationStatusReason': 'Property [Timeout] expected type: Integer, found: String',
+        },
+        {
+            'EventId': 'validation-event-2',
+            'StackId': 'arn:aws:cloudformation:us-east-1:123456789012:stack/teststack/abc123',
+            'OperationId': 'op-123',
+            'OperationType': 'CREATE_CHANGESET',
+            'EventType': 'VALIDATION_ERROR',
+            'LogicalResourceId': 'MyS3Bucket',
+            'ResourceType': 'AWS::S3::Bucket',
+            'ValidationName': 'RESOURCE_CONFLICT',
+            'ValidationStatus': 'FAILED',
+            'ValidationPath': '/Resources/MyS3Bucket/Properties/BucketName',
+            'ValidationStatusReason': 'Bucket name already exists',
+        }
+    ]
+}
+
+VALIDATION_EVENTS_EMPTY = {
+    'OperationEvents': [
+        {
+            'EventId': 'succeeded-event',
+            'StackId': 'arn:aws:cloudformation:us-east-1:123456789012:stack/teststack/abc123',
+            'OperationId': 'op-123',
+            'OperationType': 'CREATE_CHANGESET',
+            'OperationStatus': 'SUCCEEDED',
+            'EventType': 'STACK_EVENT',
+        }
+    ]
+}

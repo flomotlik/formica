@@ -61,6 +61,7 @@ CONFIG_FILE_ARGUMENTS = {
     "upload_artifacts": bool,
     "nested_change_sets": bool,
     "disable_rollback": bool,
+    "include_validation": bool,
 }
 
 
@@ -129,6 +130,7 @@ def main(cli_args):
     add_organization_account_template_variables(new_parser)
     add_upload_artifacts(new_parser)
     add_nested_change_sets(new_parser)
+    add_include_validation(new_parser)
     new_parser.set_defaults(func=new)
 
     # Change Command Arguments
@@ -149,6 +151,7 @@ def main(cli_args):
     add_use_previous(change_parser)
     add_upload_artifacts(change_parser)
     add_nested_change_sets(change_parser)
+    add_include_validation(change_parser)
     change_parser.set_defaults(func=change)
 
     # Deploy Command Arguments
@@ -555,6 +558,14 @@ def add_nested_change_sets(parser):
     parser.add_argument("--nested-change-sets", help="Create a ChangeSet for nested Stacks", action="store_true")
 
 
+def add_include_validation(parser):
+    parser.add_argument(
+        "--include-validation",
+        help="Show pre-deployment validation results after creating a change set",
+        action="store_true",
+    )
+
+
 def template(args):
     from .loader import Loader
     import yaml
@@ -677,6 +688,8 @@ def change(args):
     else:
         change_set.create(**options)
     change_set.describe()
+    if args.include_validation:
+        change_set.describe_validation()
 
 
 def cloudformation_client():
@@ -782,6 +795,8 @@ def new(args):
     else:
         change_set.create(**options)
     change_set.describe()
+    if args.include_validation:
+        change_set.describe_validation()
     logger.info("Change set created, please deploy")
 
 
