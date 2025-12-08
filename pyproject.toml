@@ -3,5 +3,5 @@
 
 [tool.black]
 # See https://github.com/ambv/black/blob/master/pyproject.toml
-target_version = ['py35', 'py36', 'py37']
+target_version = ['py310', 'py311', 'py312']
 line_length=119
