@@ -40,7 +40,7 @@ class ChangeSet:
                 for p in stacks["Stacks"][0]["Parameters"]
             ]
         if parameters:
-            for (key, value) in parameters.items():
+            for key, value in parameters.items():
                 item = next((x for x in parameters_set if x["ParameterKey"] == key), None)
                 values = {"ParameterKey": key, "ParameterValue": str(value), "UsePreviousValue": False}
                 if item:
