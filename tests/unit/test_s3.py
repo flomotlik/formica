@@ -84,3 +84,62 @@ def test_does_not_use_s3_api_when_planning(bucket):
     bucket.return_value.create.assert_not_called()
     bucket.return_value.put_object.assert_not_called()
     bucket.return_value.delete_objects.assert_not_called()
+
+
+def test_s3_bucket_with_additional_seed(mocker, bucket, boto_client):
+    # Test that bucket_seed produces different bucket names
+    bucket.return_value.objects.all.return_value = []
+    boto_client.return_value.meta.region_name = "eu-central-1"
+    boto_client.return_value.get_caller_identity.return_value = {'Account': '1234'}
+
+    # Get bucket name without seed
+    with temporary_bucket(seed=STACK) as temp_bucket1:
+        temp_bucket1.add(STRING_BODY)
+        bucket_name_without_seed = temp_bucket1.name
+
+    # Get bucket name with additional seed
+    with temporary_bucket(seed=STACK, bucket_seed='extra-seed') as temp_bucket2:
+        temp_bucket2.add(STRING_BODY)
+        bucket_name_with_seed = temp_bucket2.name
+
+    # The bucket names should be different
+    assert bucket_name_without_seed != bucket_name_with_seed
+    assert bucket_name_without_seed.startswith('formica-deploy-')
+    assert bucket_name_with_seed.startswith('formica-deploy-')
+
+
+def test_s3_bucket_with_empty_bucket_seed(mocker, bucket, boto_client):
+    # Test that empty string bucket_seed is treated as no seed (backward compatible)
+    bucket.return_value.objects.all.return_value = []
+    boto_client.return_value.meta.region_name = "eu-central-1"
+    boto_client.return_value.get_caller_identity.return_value = {'Account': '1234'}
+
+    # Get bucket name without seed
+    with temporary_bucket(seed=STACK) as temp_bucket1:
+        temp_bucket1.add(STRING_BODY)
+        bucket_name_without_seed = temp_bucket1.name
+
+    # Get bucket name with empty string seed (should be same as no seed)
+    with temporary_bucket(seed=STACK, bucket_seed='') as temp_bucket2:
+        temp_bucket2.add(STRING_BODY)
+        bucket_name_with_empty_seed = temp_bucket2.name
+
+    # The bucket names should be the same (empty string doesn't change hash)
+    assert bucket_name_without_seed == bucket_name_with_empty_seed
+
+
+def test_s3_bucket_different_seeds_produce_different_names(mocker, bucket, boto_client):
+    # Test that different bucket_seed values produce different bucket names
+    bucket.return_value.objects.all.return_value = []
+    boto_client.return_value.meta.region_name = "eu-central-1"
+    boto_client.return_value.get_caller_identity.return_value = {'Account': '1234'}
+
+    bucket_names = []
+    for i in range(3):
+        with temporary_bucket(seed=STACK, bucket_seed=f'seed-{i}') as temp_bucket:
+            temp_bucket.add(STRING_BODY)
+            bucket_names.append(temp_bucket.name)
+
+    # All bucket names should be unique
+    assert len(bucket_names) == len(set(bucket_names))
+    assert bucket_names[0] != bucket_names[1] != bucket_names[2]
